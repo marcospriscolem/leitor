@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
-<title>Leitor de Gabarito - Design Suave</title>
+<title>Leitor de Gabarito - Alternar Câmera</title>
 <script async src="https://docs.opencv.org/4.x/opencv.js" type="text/javascript"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <style>
@@ -123,12 +123,29 @@
     white-space: pre-wrap;
     text-align: left;
   }
+  #switchCamera {
+    display: inline-block;
+    background: #79bbdf;
+    color: #fff;
+    border: none;
+    margin-bottom: 16px;
+    padding: 8px 16px;
+    border-radius: 9px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 600;
+    margin-right: 8px;
+    margin-top: 0;
+  }
+  #switchCamera:hover {
+    background: #428ca5;
+  }
 </style>
 </head>
 <body>
 <div id="container">
   <h1>Leitor de Gabarito</h1>
-  <p>📸 Indique o gabarito abaixo, aponte seu cartão de respostas para a câmera traseira e clique em <b>Capturar Gabarito</b>.<br>
+  <p>📸 Indique o gabarito abaixo, aponte seu cartão de respostas para a câmera desejada e clique em <b>Capturar Gabarito</b>.<br>
   As correções aparecerão logo abaixo!</p>
 
   <div id="answerKeySection">
@@ -138,6 +155,7 @@
     <form id="answerKeyForm"></form>
   </div>
 
+  <button id="switchCamera">Alternar Câmera</button>
   <video id="video" autoplay playsinline></video><br />
   <button id="capture" disabled>Capturar Gabarito</button>
   <canvas id="canvas" width="350" height="260" style="display:none"></canvas>
@@ -150,27 +168,40 @@
   let resultsArea = document.getElementById('results');
   let captureBtn = document.getElementById('capture');
   let answerKeyForm = document.getElementById('answerKeyForm');
+  let switchBtn = document.getElementById('switchCamera');
 
-  // Solicita câmera traseira, faz fallback se não disponível
-  function startCamera(){
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } })
-      .then(function(stream) {
+  let currentFacing = "environment"; // Inicialmente tenta a traseira
+  let currentStream = null;
+
+  async function startCamera(facingMode) {
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => track.stop());
+    }
+    let constraints = { video: { facingMode: { exact: facingMode } } };
+    try {
+      let stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream;
+      currentStream = stream;
+      currentFacing = facingMode;
+    } catch (e) {
+      // fallback para qualquer câmera disponível
+      try {
+        let stream = await navigator.mediaDevices.getUserMedia({ video: true });
         video.srcObject = stream;
-        video.play();
-      })
-      .catch(function(err) {
-        // Fallback: qualquer câmera disponível
-        navigator.mediaDevices.getUserMedia({ video: true })
-          .then(function(stream) {
-            video.srcObject = stream;
-            video.play();
-          })
-          .catch(function(e) {
-            alert('Erro ao acessar a câmera: ' + e);
-          });
-      });
+        currentStream = stream;
+        currentFacing = "user";
+      } catch (err) {
+        alert('Erro ao acessar a câmera: ' + err);
+      }
+    }
   }
-  startCamera();
+  // Alterna entre traseira e frontal
+  switchBtn.addEventListener('click', () => {
+    let newFacing = currentFacing === "environment" ? "user" : "environment";
+    startCamera(newFacing);
+  });
+  // Inicia traseira por padrão
+  startCamera(currentFacing);
 
   function onOpenCvReady() {
     resultsArea.textContent = 'OpenCV.js carregado. Indique o gabarito e capture!';
