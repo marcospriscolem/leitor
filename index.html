@@ -128,7 +128,7 @@
 <body>
 <div id="container">
   <h1>Leitor de Gabarito</h1>
-  <p>📸 Indique o gabarito abaixo, aponte seu cartão de respostas para a câmera e clique em <b>Capturar Gabarito</b>.<br>
+  <p>📸 Indique o gabarito abaixo, aponte seu cartão de respostas para a câmera traseira e clique em <b>Capturar Gabarito</b>.<br>
   As correções aparecerão logo abaixo!</p>
 
   <div id="answerKeySection">
@@ -150,22 +150,27 @@
   let resultsArea = document.getElementById('results');
   let captureBtn = document.getElementById('capture');
   let answerKeyForm = document.getElementById('answerKeyForm');
-  // Centraliza o vídeo na tela ao redimensionar
-  function resizeVideo(){
-    video.height = Math.round(video.width * 0.74);
-    canvas.height = video.height;
-    canvas.width = video.width;
-  }
-  video.onresize = resizeVideo;
-  window.onresize = resizeVideo;
 
-  navigator.mediaDevices.getUserMedia({ video: true })
-    .then(function(stream) {
-      video.srcObject = stream;
-      video.play();
-    }).catch(function(err) {
-      alert('Erro ao acessar a câmera: ' + err);
-    });
+  // Solicita câmera traseira, faz fallback se não disponível
+  function startCamera(){
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } })
+      .then(function(stream) {
+        video.srcObject = stream;
+        video.play();
+      })
+      .catch(function(err) {
+        // Fallback: qualquer câmera disponível
+        navigator.mediaDevices.getUserMedia({ video: true })
+          .then(function(stream) {
+            video.srcObject = stream;
+            video.play();
+          })
+          .catch(function(e) {
+            alert('Erro ao acessar a câmera: ' + e);
+          });
+      });
+  }
+  startCamera();
 
   function onOpenCvReady() {
     resultsArea.textContent = 'OpenCV.js carregado. Indique o gabarito e capture!';
@@ -242,7 +247,7 @@
 
     src.delete(); gray.delete(); circles.delete();
 
-    let resultado = '📋 <b>Resultados da correção:</b>\n';
+    let resultado = '📋 Resultados da correção:\n';
     let totalPontos = 0;
     let nQuestoes = marcadas.length;
     for (let i = 0; i < nQuestoes; i++) {
@@ -250,14 +255,13 @@
       let marcou = marcadas[i];
       let acertou = (marcou[certo] === true);
       if (acertou) totalPontos++;
-      resultado += `Q${i+1}: Correta: <b>${certo}</b> | Marcada: `;
+      resultado += `Q${i+1}: Correta: ${certo} | Marcada: `;
       let marcadasStr = Object.keys(marcou).filter(k => marcou[k]).join(', ');
       resultado += marcadasStr ? marcadasStr : 'Nenhuma';
       resultado += acertou ? ' ✓\n' : ' ✗\n';
     }
-    resultado += `\n✅ <b>Total de acertos: ${totalPontos} de ${nQuestoes}</b>`;
-    // Remove bold tags se não quiser HTML embutido em <pre>
-    return resultado.replace(/<b>/g,'').replace(/<\/b>/g,'');
+    resultado += `\n✅ Total de acertos: ${totalPontos} de ${nQuestoes}`;
+    return resultado;
   }
 
   captureBtn.addEventListener('click', () => {
