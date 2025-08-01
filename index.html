@@ -170,7 +170,7 @@
   let answerKeyForm = document.getElementById('answerKeyForm');
   let switchBtn = document.getElementById('switchCamera');
 
-  let currentFacing = "environment"; // Inicialmente tenta a traseira
+  let currentFacing = "environment"; // Inicialmente tenta traseira
   let currentStream = null;
 
   async function startCamera(facingMode) {
@@ -247,33 +247,49 @@
     let nQuestions = parseInt(document.getElementById('numberQuestions').value);
     let marcadas = new Array(nQuestions).fill(null).map(() => ({A:false,B:false,C:false,D:false,E:false}));
 
-    if (circles.rows > 0) {
-      for (let i = 0; i < circles.cols; ++i) {
-        let x = circles.data32F[i*3];
-        let y = circles.data32F[i*3 + 1];
-        let r = circles.data32F[i*3 + 2];
-        let roi = gray.roi(new cv.Rect(x - r, y - r, 2*r, 2*r));
-        let total = 0, marc = 0;
-        for (let px = 0; px < roi.rows; ++px) {
-          for (let py = 0; py < roi.cols; ++py) {
-            if (roi.ucharPtr(px, py)[0] < 100) marc++;
-            total++;
-          }
-        }
-        roi.delete();
-        let perc = marc / total;
-        if (perc > 0.25) {
-          let questIndex = Math.floor(i/5);
-          let altIndex = i % 5;
-          if (questIndex < nQuestions) {
-            const altMap = ['A','B','C','D','E'];
-            marcadas[questIndex][altMap[altIndex]] = true;
-          }
-        }
-      }
-    } else {
+    if (circles.empty() || circles.cols === 0) {
       src.delete(); gray.delete(); circles.delete();
       return 'Nenhuma bolinha detectada. Tente melhorar o foco e a iluminação!';
+    }
+
+    for (let i = 0; i < circles.cols; ++i) {
+      // Captura valores do círculo e arredonda para int
+      let x = Math.round(circles.data32F[i*3]);
+      let y = Math.round(circles.data32F[i*3 + 1]);
+      let r = Math.round(circles.data32F[i*3 + 2]);
+
+      // Limita o retângulo para dentro da imagem para evitar erros
+      let rectX = Math.max(0, x - r);
+      let rectY = Math.max(0, y - r);
+      let rectWidth = Math.min(2*r, gray.cols - rectX);
+      let rectHeight = Math.min(2*r, gray.rows - rectY);
+
+      if (rectWidth <= 0 || rectHeight <= 0) {
+        continue; // pula círculos inválidos
+      }
+
+      let roi = gray.roi(new cv.Rect(rectX, rectY, rectWidth, rectHeight));
+
+      // Conta pixels escuros para detectar se está marcada
+      let total = roi.rows * roi.cols;
+      let marc = 0;
+      for (let px = 0; px < roi.rows; ++px) {
+        for (let py = 0; py < roi.cols; ++py) {
+          if (roi.ucharPtr(px, py)[0] < 100) marc++;
+        }
+      }
+      roi.delete();
+
+      let perc = marc / total;
+      // Limiar: considere marcada se > 25% de pixels escuros dentro do círculo
+      if (perc > 0.25) {
+        let questIndex = Math.floor(i / 5);
+        let altIndex = i % 5;
+        if (questIndex < nQuestions) {
+          const altMap = ['A','B','C','D','E'];
+          marcadas[questIndex][altMap[altIndex]] = true;
+        }
+      }
     }
 
     src.delete(); gray.delete(); circles.delete();
